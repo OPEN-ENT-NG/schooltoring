@@ -1,0 +1,11 @@
+{
+	"main" : "fr.openent.schooltoring.Schooltoring",
+	"port" : 8141,
+	"app-name" : "Schooltoring",
+	"app-address" : "/schooltoring",
+	"app-icon" : "Schooltoring-large",
+	"app-displayName" : "Schooltoring",
+	"mode": "dev",
+	"entcore.port" : 8090,
+	"auto-redeploy": false
+}
