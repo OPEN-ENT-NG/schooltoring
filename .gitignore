@@ -7,3 +7,5 @@
 /.settings
 .jshintrc
 node_modules
+Schooltoring.iml
+.idea
