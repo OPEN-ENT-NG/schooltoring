@@ -4,8 +4,10 @@ import fr.openent.schooltoring.security.APIRight;
 import fr.openent.schooltoring.service.ProfileService;
 import fr.openent.schooltoring.service.impl.DefaultProfileService;
 import fr.wseduc.rs.Get;
+import fr.wseduc.rs.Post;
 import fr.wseduc.security.ActionType;
 import fr.wseduc.security.SecuredAction;
+import fr.wseduc.webutils.request.RequestUtils;
 import io.vertx.core.http.HttpServerRequest;
 import org.entcore.common.controller.ControllerHelper;
 import org.entcore.common.http.filter.ResourceFilter;
@@ -25,5 +27,14 @@ public class ProfileController extends ControllerHelper {
     @ResourceFilter(APIRight.class)
     public void getProfile(HttpServerRequest request) {
         UserUtils.getSession(eb, request, user -> profileService.get(user.getString("userId"), defaultResponseHandler(request)));
+    }
+
+    @Post("/profile")
+    @SecuredAction(value = "", type = ActionType.RESOURCE)
+    @ResourceFilter(APIRight.class)
+    public void postProfile(HttpServerRequest request) {
+        RequestUtils.bodyToJson(request, pathPrefix + "profile", profile -> {
+            UserUtils.getUserInfos(eb, request, user -> profileService.set(user.getUserId(), profile, defaultResponseHandler(request)));
+        });
     }
 }

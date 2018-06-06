@@ -67,6 +67,59 @@ public class DefaultProfileService implements ProfileService {
         }));
     }
 
+    @Override
+    public void set(String userId, JsonObject profile, Handler<Either<String, JsonObject>> handler) {
+        JsonArray statements = new JsonArray()
+                .add(setStudentStatement(userId, profile.getJsonObject("availabilities")));
+
+        JsonArray strengths = profile.getJsonArray("strengths");
+        JsonArray weaknesses = profile.getJsonArray("weaknesses");
+
+        for (int s = 0; s < strengths.size(); s++) {
+            statements.add(setFeatureStatement(userId, strengths.getJsonObject(s), Feature.STRENGTH.toString()));
+        }
+
+        for (int w = 0; w < weaknesses.size(); w++) {
+            statements.add(setFeatureStatement(userId, weaknesses.getJsonObject(w), Feature.WEAKNESS.toString()));
+        }
+
+        Sql.getInstance().transaction(statements, SqlResult.validRowsResultHandler(handler));
+    }
+
+    private JsonObject setFeatureStatement(String userId, JsonObject feature, String state) {
+        JsonArray params = new JsonArray()
+                .add(userId);
+        String query = "INSERT INTO " + Schooltoring.dbSchema + ".feature(student_id, state, subject_id) " +
+                "VALUES (?, ?, ?);";
+        params.add(state)
+                .add(feature.getString("subject_id"));
+
+        return new JsonObject()
+                .put("statement", query)
+                .put("values", params)
+                .put("action", "prepared");
+    }
+
+    private JsonObject setStudentStatement (String userId, JsonObject availabilities) {
+        JsonArray params = new JsonArray();
+        String query = "INSERT INTO " + Schooltoring.dbSchema + ".student (id, monday, tuesday, " +
+                "wednesday, thursday, friday, saturday, sunday) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
+        params.add(userId)
+                .add(availabilities.getBoolean("monday"))
+                .add(availabilities.getBoolean("tuesday"))
+                .add(availabilities.getBoolean("wednesday"))
+                .add(availabilities.getBoolean("thursday"))
+                .add(availabilities.getBoolean("friday"))
+                .add(availabilities.getBoolean("saturday"))
+                .add(availabilities.getBoolean("sunday"));
+
+        return new JsonObject()
+                .put("statement", query)
+                .put("values", params)
+                .put("action", "prepared");
+    }
+
     /**
      * Format feature
      * @param featureId Feature id
@@ -81,6 +134,7 @@ public class DefaultProfileService implements ProfileService {
 
     private JsonObject clearResult (JsonObject result) {
         result.remove("feature_id");
+        result.remove("subject_id");
         result.remove("state");
         result.remove("monday");
         result.remove("tuesday");

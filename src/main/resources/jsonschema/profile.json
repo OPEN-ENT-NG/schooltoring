@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "availabilities": {
+      "type": "object"
+    },
+    "strengths": {
+      "type": "array"
+    },
+    "weaknesses": {
+      "type": "array"
+    }
+  },
+  "required": [ "availabilities", "strengths", "weaknesses" ]
+}

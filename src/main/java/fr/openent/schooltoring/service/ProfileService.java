@@ -12,4 +12,12 @@ public interface ProfileService {
      * @param handler Function handler returning data
      */
     void get(String userId, Handler<Either<String, JsonObject>> handler);
+
+    /**
+     * Set user profile
+     * @param userId User identifier
+     * @param profile Profile object
+     * @param handler Function handler returning data
+     */
+    void set(String userId, JsonObject profile, Handler<Either<String, JsonObject>> handler);
 }
