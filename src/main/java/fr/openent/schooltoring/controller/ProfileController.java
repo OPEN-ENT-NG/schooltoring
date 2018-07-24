@@ -5,6 +5,7 @@ import fr.openent.schooltoring.service.ProfileService;
 import fr.openent.schooltoring.service.impl.DefaultProfileService;
 import fr.wseduc.rs.Get;
 import fr.wseduc.rs.Post;
+import fr.wseduc.rs.Put;
 import fr.wseduc.security.ActionType;
 import fr.wseduc.security.SecuredAction;
 import fr.wseduc.webutils.request.RequestUtils;
@@ -35,6 +36,15 @@ public class ProfileController extends ControllerHelper {
     public void postProfile(HttpServerRequest request) {
         RequestUtils.bodyToJson(request, pathPrefix + "profile", profile -> {
             UserUtils.getUserInfos(eb, request, user -> profileService.set(user.getUserId(), profile, defaultResponseHandler(request)));
+        });
+    }
+
+    @Put("/profile")
+    @SecuredAction(value = "", type = ActionType.RESOURCE)
+    @ResourceFilter(APIRight.class)
+    public void putProfile(HttpServerRequest request) {
+        RequestUtils.bodyToJson(request, pathPrefix + "profile", profile -> {
+            UserUtils.getUserInfos(eb, request, user -> profileService.update(user.getUserId(), profile, defaultResponseHandler(request)));
         });
     }
 }

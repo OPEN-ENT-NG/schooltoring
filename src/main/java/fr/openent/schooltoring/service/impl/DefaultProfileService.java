@@ -15,6 +15,8 @@ import org.entcore.common.sql.SqlResult;
 public class DefaultProfileService implements ProfileService {
 
     Logger LOGGER = LoggerFactory.getLogger(DefaultProfileService.class);
+    private String ADDITION = "addition";
+    private String DELETION = "deletion";
 
     @Override
     public void get(String userId, Handler<Either<String, JsonObject>> handler) {
@@ -61,8 +63,9 @@ public class DefaultProfileService implements ProfileService {
                 result = clearResult(result);
                 handler.handle(new Either.Right<>(result));
             } else {
-                LOGGER.error("An error occurred when fetching profile for user " + userId);
-                handler.handle(new Either.Left<>("An error occurred when fetching profile"));
+                String errorMessage = "[DefaultProfileService@get] An error occurred when fetching profile for user " + userId;
+                LOGGER.error(errorMessage);
+                handler.handle(new Either.Left<>(errorMessage));
             }
         }));
     }
@@ -86,6 +89,127 @@ public class DefaultProfileService implements ProfileService {
         Sql.getInstance().transaction(statements, SqlResult.validRowsResultHandler(handler));
     }
 
+    @Override
+    public void update(String userId, JsonObject profile, Handler<Either<String, JsonObject>> handler) {
+        this.get(userId, event -> {
+            if (event.isRight()) {
+                JsonArray arr;
+                JsonObject userProfile = event.right().getValue();
+
+                JsonArray statements = new JsonArray()
+                        .add(getUpdateAvailabilitiesStatement(userId, profile.getJsonObject("availabilities")));
+
+                JsonObject weaknesses = compareFeatures(userProfile.getJsonArray("weaknesses"), profile.getJsonArray("weaknesses"));
+                JsonObject strengths = compareFeatures(userProfile.getJsonArray("strengths"), profile.getJsonArray("strengths"));
+
+                arr = weaknesses.getJsonArray(ADDITION);
+                for (int i = 0; i < arr.size(); i++) {
+                    statements.add(setFeatureStatement(userId, arr.getJsonObject(i), Feature.WEAKNESS.toString()));
+                }
+
+                arr = weaknesses.getJsonArray(DELETION);
+                for (int i = 0; i < arr.size(); i++) {
+                    statements.add(deleteFeatureStatement(arr.getInteger(i), userId));
+                }
+
+                arr = strengths.getJsonArray(ADDITION);
+                for (int i = 0; i < arr.size(); i++) {
+                    statements.add(setFeatureStatement(userId, arr.getJsonObject(i), Feature.STRENGTH.toString()));
+                }
+
+                arr = strengths.getJsonArray(DELETION);
+                for (int i = 0; i < arr.size(); i++) {
+                    statements.add(deleteFeatureStatement(arr.getInteger(i), userId));
+                }
+
+                Sql.getInstance().transaction(statements, SqlResult.validRowsResultHandler(handler));
+
+            } else {
+                String errorMessage = "[DefaultProfileService@update] An error occurred while updating user profile for user " + userId;
+                LOGGER.error(errorMessage);
+                handler.handle(new Either.Left<>(errorMessage));
+            }
+        });
+    }
+
+    private JsonObject getUpdateAvailabilitiesStatement(String userId, JsonObject availabilities) {
+        String query = "UPDATE " + Schooltoring.dbSchema + ".student SET monday=?, tuesday=?, " +
+                "wednesday=?, thursday=?, friday=?, saturday=?, sunday=? WHERE id=?";
+
+        JsonArray params = new JsonArray()
+                .add(availabilities.getBoolean("monday"))
+                .add(availabilities.getBoolean("tuesday"))
+                .add(availabilities.getBoolean("wednesday"))
+                .add(availabilities.getBoolean("thursday"))
+                .add(availabilities.getBoolean("friday"))
+                .add(availabilities.getBoolean("saturday"))
+                .add(availabilities.getBoolean("sunday"))
+                .add(userId);
+
+        return new JsonObject()
+                .put("statement", query)
+                .put("values", params)
+                .put("action", "prepared");
+    }
+
+    /**
+     * Compare feature and sort them. It returns an object containing an array with added features and
+     * an array with deleted features. For each feature:
+     * - If the feature has no SQL identifier, the algorithm checks if the subject id appears in the current
+     * subject array. If yes, the feature is skipped. Otherwise, it pushes to the new features array.
+     * - If the feature has a SQL identifier, the function skipped it.
+     *
+     * @param current Current feature array
+     * @param updated Updated feature array
+     * @return
+     */
+    private JsonObject compareFeatures(JsonArray current, JsonArray updated) {
+        JsonArray currentSqlIds = new JsonArray(),
+                currentSubjectsIds = new JsonArray(),
+                updatedSqlIds = new JsonArray(),
+                updatedSubjectsIds = new JsonArray(),
+                newFeatures = new JsonArray(),
+                deletedFeatures = new JsonArray();
+        JsonObject o;
+        Integer id;
+        String subjectId;
+
+        for (int i = 0; i < current.size(); i++) {
+            o = current.getJsonObject(i);
+            currentSqlIds.add(o.getInteger("id"));
+            currentSubjectsIds.add(o.getString("subject_id"));
+        }
+
+        for (int i = 0; i < updated.size(); i++) {
+            o = updated.getJsonObject(i);
+            if (o.containsKey("id")) {
+                updatedSqlIds.add(o.getInteger("id"));
+            }
+            updatedSubjectsIds.add(o.getString("subject_id"));
+        }
+
+        for (int i = 0; i < updated.size(); i++) {
+            o = updated.getJsonObject(i);
+            subjectId = o.getString("subject_id");
+            if (o.containsKey("id") || currentSubjectsIds.contains(subjectId)) {
+                continue;
+            }
+
+            newFeatures.add(o);
+        }
+
+        for (int i = 0; i < currentSqlIds.size(); i++) {
+            id = currentSqlIds.getInteger(i);
+            if (!updatedSqlIds.contains(id)) {
+                deletedFeatures.add(id);
+            }
+        }
+
+        return new JsonObject()
+                .put(DELETION, deletedFeatures)
+                .put(ADDITION, newFeatures);
+    }
+
     private JsonObject setFeatureStatement(String userId, JsonObject feature, String state) {
         JsonArray params = new JsonArray()
                 .add(userId);
@@ -100,7 +224,19 @@ public class DefaultProfileService implements ProfileService {
                 .put("action", "prepared");
     }
 
-    private JsonObject setStudentStatement (String userId, JsonObject availabilities) {
+    private JsonObject deleteFeatureStatement(Integer id, String userId) {
+        String query = "DELETE FROM " + Schooltoring.dbSchema + ".feature  WHERE id = ? AND student_id = ?;";
+        JsonArray params = new JsonArray()
+                .add(id)
+                .add(userId);
+
+        return new JsonObject()
+                .put("statement", query)
+                .put("values", params)
+                .put("action", "prepared");
+    }
+
+    private JsonObject setStudentStatement(String userId, JsonObject availabilities) {
         JsonArray params = new JsonArray();
         String query = "INSERT INTO " + Schooltoring.dbSchema + ".student (id, monday, tuesday, " +
                 "wednesday, thursday, friday, saturday, sunday) " +
@@ -122,17 +258,18 @@ public class DefaultProfileService implements ProfileService {
 
     /**
      * Format feature
+     *
      * @param featureId Feature id
      * @param subjectId Subject id
      * @return
      */
-    private JsonObject formatFeature (Long featureId, String subjectId) {
+    private JsonObject formatFeature(Long featureId, String subjectId) {
         return new JsonObject()
                 .put("id", featureId)
                 .put("subject_id", subjectId);
     }
 
-    private JsonObject clearResult (JsonObject result) {
+    private JsonObject clearResult(JsonObject result) {
         result.remove("feature_id");
         result.remove("subject_id");
         result.remove("state");
