@@ -9,6 +9,7 @@ CREATE TABLE schooltoring.scripts (
 
 CREATE TABLE schooltoring.student (
   id character varying(36) NOT NULL,
+  structure_id character varying(36) NOT NULL,
   monday boolean,
   tuesday boolean,
   wednesday boolean,

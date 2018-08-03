@@ -35,7 +35,7 @@ public class ProfileController extends ControllerHelper {
     @ResourceFilter(APIRight.class)
     public void postProfile(HttpServerRequest request) {
         RequestUtils.bodyToJson(request, pathPrefix + "profile", profile -> {
-            UserUtils.getUserInfos(eb, request, user -> profileService.set(user.getUserId(), profile, defaultResponseHandler(request)));
+            UserUtils.getUserInfos(eb, request, user -> profileService.set(user.getUserId(), user.getStructures().get(0), profile, defaultResponseHandler(request)));
         });
     }
 

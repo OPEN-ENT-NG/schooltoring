@@ -71,9 +71,9 @@ public class DefaultProfileService implements ProfileService {
     }
 
     @Override
-    public void set(String userId, JsonObject profile, Handler<Either<String, JsonObject>> handler) {
+    public void set(String userId, String structureId, JsonObject profile, Handler<Either<String, JsonObject>> handler) {
         JsonArray statements = new JsonArray()
-                .add(setStudentStatement(userId, profile.getJsonObject("availabilities")));
+                .add(setStudentStatement(userId, structureId, profile.getJsonObject("availabilities")));
 
         JsonArray strengths = profile.getJsonArray("strengths");
         JsonArray weaknesses = profile.getJsonArray("weaknesses");
@@ -236,12 +236,13 @@ public class DefaultProfileService implements ProfileService {
                 .put("action", "prepared");
     }
 
-    private JsonObject setStudentStatement(String userId, JsonObject availabilities) {
+    private JsonObject setStudentStatement(String userId, String structureId, JsonObject availabilities) {
         JsonArray params = new JsonArray();
-        String query = "INSERT INTO " + Schooltoring.dbSchema + ".student (id, monday, tuesday, " +
+        String query = "INSERT INTO " + Schooltoring.dbSchema + ".student (id, structure_id, monday, tuesday, " +
                 "wednesday, thursday, friday, saturday, sunday) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);";
         params.add(userId)
+                .add(structureId)
                 .add(availabilities.getBoolean("monday"))
                 .add(availabilities.getBoolean("tuesday"))
                 .add(availabilities.getBoolean("wednesday"))
