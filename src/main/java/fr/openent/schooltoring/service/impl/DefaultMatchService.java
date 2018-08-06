@@ -34,7 +34,7 @@ public class DefaultMatchService implements MatchService {
                         .add(state)
                         .add(structureId)
                         .add(userId);
-                String query = "SELECT st.id, count(*) as matches, row_to_json(st.*) as availabilities, array_to_json(array_agg(ft.subject_id)) as features " +
+                String query = "SELECT st.id, count(*) as matches, row_to_json(st.*) as availabilities, array_to_json(array_agg(ft.subject_id)) as features, concat_ws('$', count(*), st.id) as orderedMatches " +
                         "FROM  " + Schooltoring.dbSchema + ".student st INNER JOIN " +
                         Schooltoring.dbSchema + ".feature ft on (st.id = ft.student_id) " +
                         "WHERE EXISTS (SELECT * " +
@@ -54,14 +54,12 @@ public class DefaultMatchService implements MatchService {
                 query = query.substring(0, query.length() - 3);
                 query += ") " +
                         "GROUP BY st.id " +
-                        "ORDER BY matches DESC " +
-                        "LIMIT ?";
+                        "ORDER BY orderedMatches DESC " +
+                        "LIMIT ? " +
+                        "OFFSET ?";
 
-                params.add(PAGE_SIZE);
-                if (page != 0) {
-                    query += "OFFSET ?";
-                    params.add(page * PAGE_SIZE);
-                }
+                params.add(PAGE_SIZE)
+                        .add(page * PAGE_SIZE);
 
                 Sql.getInstance().prepared(query, params, SqlResult.validResultHandler(matchEvent -> {
                     if (matchEvent.isRight()) {
@@ -142,6 +140,7 @@ public class DefaultMatchService implements MatchService {
                     tmpAvailabilites.remove("structure_id");
                     tmpUser.put("availabilities", tmpAvailabilites);
                     tmpUser.put("features", getFeatures(new JsonArray(tmpUser.getString("features")), mappedFeatures));
+                    tmpUser.remove("orderedmatches");
                 }
 
                 handler.handle(new Either.Right<>(users));
