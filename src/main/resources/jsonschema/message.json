@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "text": {
+      "type": "string"
+    }
+  }
+},
+"required": [
+"student_id"
+]
+}
