@@ -5,14 +5,14 @@ import fr.openent.schooltoring.definition.Feature;
 import fr.openent.schooltoring.service.MatchService;
 import fr.openent.schooltoring.service.ProfileService;
 import fr.openent.schooltoring.service.SubjectService;
+import fr.openent.schooltoring.service.UserService;
+import fr.openent.schooltoring.utils.Utils;
 import fr.wseduc.webutils.Either;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.entcore.common.neo4j.Neo4j;
-import org.entcore.common.neo4j.Neo4jResult;
 import org.entcore.common.sql.Sql;
 import org.entcore.common.sql.SqlResult;
 
@@ -21,6 +21,8 @@ public class DefaultMatchService implements MatchService {
     private static Integer PAGE_SIZE = 10;
     private final ProfileService profileService = new DefaultProfileService();
     private final SubjectService subjectService = new DefaultSubjectService();
+    private final UserService userService = new DefaultUserService();
+
     Logger LOGGER = LoggerFactory.getLogger(DefaultProfileService.class);
 
     @Override
@@ -33,6 +35,8 @@ public class DefaultMatchService implements MatchService {
                         .add(Feature.STRENGTH.toString().equals(state) ? Feature.WEAKNESS : Feature.STRENGTH)
                         .add(state)
                         .add(structureId)
+                        .add(userId)
+                        .add(state)
                         .add(userId);
                 String query = "SELECT st.id, count(*) as matches, row_to_json(st.*) as availabilities, array_to_json(array_agg(ft.subject_id)) as features, concat_ws('$', count(*), st.id) as orderedMatches " +
                         "FROM  " + Schooltoring.dbSchema + ".student st INNER JOIN " +
@@ -45,6 +49,10 @@ public class DefaultMatchService implements MatchService {
                         "AND state = ?) " +
                         "AND ft.state = ? " +
                         "AND st.structure_id = ? " +
+                        "AND st.id NOT IN (SELECT student_id " +
+                        "FROM " + Schooltoring.dbSchema + ".request " +
+                        "WHERE owner = ? " +
+                        "AND state = ?)" +
                         "AND st.id != ? " +
                         "AND (";
                 for (String day : availabilites.fieldNames()) {
@@ -85,20 +93,8 @@ public class DefaultMatchService implements MatchService {
      * @param handler Function handler returning data
      */
     private void getUsersMatched(JsonArray users, Handler<Either<String, JsonArray>> handler) {
-        JsonObject user;
-        JsonArray usersId = new JsonArray();
-        for (int i = 0; i < users.size(); i++) {
-            user = users.getJsonObject(i);
-            usersId.add(user.getString("id"));
-        }
-
-        String query = "MATCH (u:User)-[:USERBOOK]->(ub:UserBook) " +
-                "WHERE u.id IN {usersId} " +
-                "return u.id as id, u.displayName as username, u.classes as classNames, ub.picture as avatar";
-        JsonObject params = new JsonObject()
-                .put("usersId", usersId);
-
-        Neo4j.getInstance().execute(query, params, Neo4jResult.validResultHandler(event -> {
+        JsonArray usersId = Utils.extractStringValues(users, "id");
+        userService.getUsers(usersId, event -> {
             if (event.isRight()) {
                 getSubjectsMatched(users, mapUsers(event.right().getValue()), handler);
             } else {
@@ -106,7 +102,7 @@ public class DefaultMatchService implements MatchService {
                 LOGGER.error(errorMessage);
                 handler.handle(new Either.Left<>(errorMessage));
             }
-        }));
+        });
     }
 
     /**
@@ -117,16 +113,7 @@ public class DefaultMatchService implements MatchService {
      * @param handler     Function handler returning data
      */
     private void getSubjectsMatched(JsonArray users, JsonObject mappedUsers, Handler<Either<String, JsonArray>> handler) {
-        JsonArray subjectsIds = new JsonArray(), tmpFeatures;
-        JsonObject user;
-
-        for (int i = 0; i < users.size(); i++) {
-            user = users.getJsonObject(i);
-            tmpFeatures = new JsonArray(user.getString("features"));
-            for (int j = 0; j < tmpFeatures.size(); j++) {
-                subjectsIds.add(tmpFeatures.getString(j));
-            }
-        }
+        JsonArray subjectsIds = Utils.extractFeaturesId(users, null);
 
         subjectService.getSubjectsById(subjectsIds, event -> {
             if (event.isRight()) {

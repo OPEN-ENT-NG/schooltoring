@@ -1,8 +1,6 @@
 package fr.openent.schooltoring;
 
-import fr.openent.schooltoring.controller.MatchController;
-import fr.openent.schooltoring.controller.ProfileController;
-import fr.openent.schooltoring.controller.SchooltoringController;
+import fr.openent.schooltoring.controller.*;
 import org.entcore.common.http.BaseServer;
 
 public class Schooltoring extends BaseServer {
@@ -17,6 +15,8 @@ public class Schooltoring extends BaseServer {
 		addController(new SchooltoringController());
 		addController(new ProfileController());
         addController(new MatchController());
+        addController(new RequestController());
+        addController(new ConversationController());
 	}
 
 }
