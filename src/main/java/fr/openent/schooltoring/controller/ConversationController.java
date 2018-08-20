@@ -7,7 +7,6 @@ import fr.openent.schooltoring.security.RequestFilter;
 import fr.openent.schooltoring.service.ConversationService;
 import fr.openent.schooltoring.service.MessageService;
 import fr.openent.schooltoring.service.impl.DefaultConversationService;
-import fr.openent.schooltoring.service.impl.DefaultMessageService;
 import fr.wseduc.rs.Get;
 import fr.wseduc.rs.Post;
 import fr.wseduc.security.ActionType;
@@ -27,7 +26,7 @@ import static org.entcore.common.http.response.DefaultResponseHandler.defaultRes
 public class ConversationController extends ControllerHelper {
 
     private final ConversationService conversationService = new DefaultConversationService();
-    private final MessageService messageService = new DefaultMessageService();
+    private MessageService messageService;
 
     @Post("/conversation/:requestId/message")
     @SecuredAction(value = "", type = ActionType.RESOURCE)
@@ -37,7 +36,7 @@ public class ConversationController extends ControllerHelper {
             UserUtils.getUserInfos(eb, request, user -> {
                 try {
                     Integer requestId = Integer.parseInt(request.params().get("requestId"));
-                    messageService.addMessage(requestId, user.getUserId(), body.getString("text"), defaultResponseHandler(request));
+                    messageService.addMessage(request, requestId, user.getUserId(), body.getString("text"), defaultResponseHandler(request));
                 } catch (ClassCastException err) {
                     badRequest(request);
                     throw err;
@@ -81,5 +80,9 @@ public class ConversationController extends ControllerHelper {
                 conversationService.getConversations(user.getUserId(), state, status, arrayResponseHandler(request));
             });
         }
+    }
+
+    public void setMessageService(MessageService messageService) {
+        this.messageService = messageService;
     }
 }
