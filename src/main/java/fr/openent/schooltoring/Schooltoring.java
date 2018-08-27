@@ -27,6 +27,7 @@ public class Schooltoring extends BaseServer {
         addController(new MatchController());
         addController(new RequestController());
         addController(conversationController);
+        addController(new FavoriteController());
 
         JsonObject messaging = config.getJsonObject("messaging");
 
