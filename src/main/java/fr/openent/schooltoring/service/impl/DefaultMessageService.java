@@ -62,7 +62,7 @@ public class DefaultMessageService implements MessageService {
         this.getMatchId(requestId, messageOwner, event -> {
             if (event.isRight()) {
                 String matchId = event.right().getValue();
-                userService.getUsers(new JsonArray().add(matchId), userEvent -> {
+                userService.getUsers(new JsonArray().add(messageOwner), userEvent -> {
                     if (userEvent.isRight()) {
                         JsonObject user = userEvent.right().getValue().getJsonObject(0);
                         NotificationUtils.getFcmTokensByUser(matchId, fcmEvent -> {
