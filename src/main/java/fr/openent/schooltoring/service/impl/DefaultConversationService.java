@@ -13,8 +13,6 @@ import io.vertx.core.logging.LoggerFactory;
 import org.entcore.common.sql.Sql;
 import org.entcore.common.sql.SqlResult;
 
-import java.util.List;
-
 public class DefaultConversationService implements ConversationService {
 
     private static Integer CONVERSATION_PAGE_SIZE = 20;
@@ -22,31 +20,71 @@ public class DefaultConversationService implements ConversationService {
     Logger LOGGER = LoggerFactory.getLogger(DefaultConversationService.class);
 
     @Override
-    public void getConversations(String userId, String state, List<String> status, Handler<Either<String, JsonArray>> handler) {
+    public void create(String user1, String user2, Handler<Either<String, JsonObject>> handler) {
+        String getConversationIdQuery = "SELECT nextval('" + Schooltoring.dbSchema + ".conversation_id_seq') as id";
+        Sql.getInstance().raw(getConversationIdQuery, SqlResult.validUniqueResultHandler(event -> {
+            if (event.isRight()) {
+                Integer conversationId = event.right().getValue().getInteger("id");
+                JsonArray statements = new JsonArray();
+                JsonObject conversationCreationStatement = new JsonObject()
+                        .put("statement", "INSERT INTO " + Schooltoring.dbSchema + ".conversation(id) VALUES (?);")
+                        .put("values", new JsonArray().add(conversationId))
+                        .put("action", "prepared");
+                statements.add(conversationCreationStatement)
+                        .add(getUserConversationStatement(conversationId, user1))
+                        .add(getUserConversationStatement(conversationId, user2));
+
+                Sql.getInstance().transaction(statements, event1 -> {
+                    JsonObject result = event1.body();
+                    if (result.containsKey("status") && "ok".equals(result.getString("status"))) {
+                        handler.handle(new Either.Right<>(new JsonObject().put("status", "ok").put("id", conversationId)));
+                    } else {
+                        String errorMessage = "[DefaultConversationService@create] Unable to create conversation";
+                        LOGGER.error(errorMessage);
+                        handler.handle(new Either.Left<>(errorMessage));
+                    }
+                });
+            } else {
+                String errorMessage = "[DefaultConversationService@create] Unable to fetch next conversation id";
+                LOGGER.error(errorMessage);
+                handler.handle(new Either.Left<>(errorMessage));
+            }
+        }));
+    }
+
+    /**
+     * Get insert user conversation statement
+     *
+     * @param conversationId Conversation identifier
+     * @param userId         User identifier
+     * @return Object containing transaction statement
+     */
+    private JsonObject getUserConversationStatement(Integer conversationId, String userId) {
+        String query = "INSERT INTO " + Schooltoring.dbSchema + ".conversation_users(id, conversation_id) VALUES (?, ?);";
         JsonArray params = new JsonArray()
                 .add(userId)
-                .add(userId)
+                .add(conversationId);
+        return new JsonObject()
+                .put("statement", query)
+                .put("values", params)
+                .put("action", "prepared");
+    }
+
+    @Override
+    public void getConversations(String userId, Handler<Either<String, JsonArray>> handler) {
+        JsonArray params = new JsonArray();
+        String query = "SELECT c.id as id, message.text as message, " +
+                "CASE WHEN message.date IS NULL THEN c.created ELSE message.date END as date, " +
+                "(SELECT id FROM " + Schooltoring.dbSchema + ".conversation_users WHERE conversation_id = c.id AND id <> ?) as student_id " +
+                "FROM " + Schooltoring.dbSchema + ".conversation c " +
+                "INNER JOIN " + Schooltoring.dbSchema + ".conversation_users ON (c.id = conversation_users.conversation_id) " +
+                "LEFT JOIN " + Schooltoring.dbSchema + ".message ON (c.id = message.conversation_id) " +
+                "AND message.id = (SELECT id FROM " + Schooltoring.dbSchema + ".message WHERE c.id = message.conversation_id ORDER BY date DESC LIMIT 1) " +
+                "WHERE conversation_users.id = ? " +
+                "ORDER BY date DESC";
+
+        params.add(userId)
                 .add(userId);
-
-        String statusFilter = "";
-        for (int i = 0; i < status.size(); i++) {
-            statusFilter += "rq.status = ? OR ";
-            params.add(status.get(i));
-        }
-
-        String stateFilter = "";
-        if (state != null) {
-            stateFilter = "AND rq.state = ? ";
-            params.add(state);
-        }
-
-        statusFilter = statusFilter.substring(0, statusFilter.length() - 3);
-        String query = "SELECT rq.id, status, state, msg.text as message, CASE WHEN msg.date IS NULL THEN rq.created ELSE msg.date END as date," +
-                "CASE WHEN rq.owner = ? THEN rq.student_id ELSE rq.owner END as student_id " +
-                "FROM " + Schooltoring.dbSchema + ".request rq  LEFT JOIN " + Schooltoring.dbSchema + ".message msg ON rq.id = msg.request_id " +
-                "AND msg.id = ( SELECT id FROM " + Schooltoring.dbSchema + ".message WHERE request_id = rq.id  ORDER BY date DESC LIMIT 1) " +
-                "WHERE (rq.owner = ? OR rq.student_id = ?) " +
-                "AND (" + statusFilter + ") " + stateFilter + "ORDER BY date DESC";
 
         Sql.getInstance().prepared(query, params, SqlResult.validResultHandler(event -> {
             if (event.isRight()) {
@@ -92,11 +130,33 @@ public class DefaultConversationService implements ConversationService {
 
 
     @Override
-    public void getMessages(Integer requestId, Integer page, Handler<Either<String, JsonArray>> handler) {
+    public void getMessages(Integer conversationId, Integer page, Handler<Either<String, JsonArray>> handler) {
         String query = "SELECT owner, date, text FROM " + Schooltoring.dbSchema + ".message " +
-                "WHERE request_id = ? ORDER BY date DESC LIMIT " + CONVERSATION_PAGE_SIZE + " OFFSET ?";
-        JsonArray params = new JsonArray().add(requestId).add(page * CONVERSATION_PAGE_SIZE);
+                "WHERE conversation_id = ? ORDER BY date DESC LIMIT " + CONVERSATION_PAGE_SIZE + " OFFSET ?";
+        JsonArray params = new JsonArray().add(conversationId).add(page * CONVERSATION_PAGE_SIZE);
 
         Sql.getInstance().prepared(query, params, SqlResult.validResultHandler(handler));
+    }
+
+    @Override
+    public void checkIfExists(String user1, String user2, Handler<Either<String, JsonObject>> handler) {
+        String query = "SELECT conversation.id " +
+                "FROM " + Schooltoring.dbSchema + ".conversation INNER JOIN " + Schooltoring.dbSchema +
+                ".conversation_users ON (conversation.id = conversation_users.conversation_id) " +
+                "WHERE conversation_users.id = ? " +
+                "AND conversation_id IN (SELECT conversation_id " +
+                "FROM " + Schooltoring.dbSchema + ".conversation_users " +
+                "WHERE id = ?)";
+        JsonArray params = new JsonArray()
+                .add(user1)
+                .add(user2);
+
+        Sql.getInstance().prepared(query, params, message -> {
+            Long count = SqlResult.countResult(message);
+            JsonObject res = new JsonObject()
+                    .put("exists", count != null && count > 0)
+                    .put("id", count != null && count > 0 ? message.body().getJsonArray("results").getJsonArray(0).getInteger(0) : 0);
+            handler.handle(new Either.Right<>(res));
+        });
     }
 }

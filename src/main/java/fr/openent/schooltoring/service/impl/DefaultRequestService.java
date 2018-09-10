@@ -2,6 +2,7 @@ package fr.openent.schooltoring.service.impl;
 
 import fr.openent.schooltoring.Schooltoring;
 import fr.openent.schooltoring.definition.RequestStatus;
+import fr.openent.schooltoring.service.ConversationService;
 import fr.openent.schooltoring.service.RequestService;
 import fr.openent.schooltoring.service.SubjectService;
 import fr.openent.schooltoring.service.UserService;
@@ -21,6 +22,7 @@ public class DefaultRequestService implements RequestService {
 
     private final UserService userService = new DefaultUserService();
     private final SubjectService subjectService = new DefaultSubjectService();
+    private final ConversationService conversationService = new DefaultConversationService();
     Logger LOGGER = LoggerFactory.getLogger(DefaultRequestService.class);
 
     @Override
@@ -33,27 +35,7 @@ public class DefaultRequestService implements RequestService {
                 .add(body.getString("state"))
                 .add(RequestStatus.WAITING);
 
-        Sql.getInstance().prepared(query, params, SqlResult.validUniqueResultHandler(event -> {
-            if (event.isRight()) {
-                userService.getUsers(new JsonArray().add(body.getString("student_id")), result -> {
-                    if (result.isRight()) {
-                        JsonObject returnedValue = new JsonObject()
-                                .put("id", event.right().getValue().getInteger("id"))
-                                .put("student", result.right().getValue().getJsonObject(0));
-
-                        handler.handle(new Either.Right<>(returnedValue));
-                    } else {
-                        String errorMessage = "[DefaultRequestService@create] An error occurred when matching user";
-                        LOGGER.error(errorMessage);
-                        handler.handle(new Either.Left<>(errorMessage));
-                    }
-                });
-            } else {
-                String errorMessage = "[DefaultRequestService@create] An error occurred creating request";
-                LOGGER.error(errorMessage);
-                handler.handle(new Either.Left<>(errorMessage));
-            }
-        }, "id"));
+        Sql.getInstance().prepared(query, params, SqlResult.validRowsResultHandler(handler));
     }
 
     @Override
@@ -61,7 +43,51 @@ public class DefaultRequestService implements RequestService {
         String query = "UPDATE " + Schooltoring.dbSchema + ".request SET status = ? WHERE id = ?";
         JsonArray params = new JsonArray().add(status).add(requestId);
 
-        Sql.getInstance().prepared(query, params, SqlResult.validRowsResultHandler(handler));
+        Sql.getInstance().prepared(query, params, SqlResult.validRowsResultHandler(event -> {
+            if (event.isRight()) {
+                if (!RequestStatus.ACCEPTED.toString().equals(status)) {
+                    handler.handle(new Either.Right<>(event.right().getValue()));
+                    return;
+                }
+
+                String getRequestQuery = "SELECT owner, student_id FROM " + Schooltoring.dbSchema + ".request WHERE id = ?;";
+                JsonArray getRequestQueryParams = new JsonArray().add(requestId);
+                Sql.getInstance().prepared(getRequestQuery, getRequestQueryParams, SqlResult.validResultHandler(getUsersEvent -> {
+                    if (getUsersEvent.isRight()) {
+                        JsonObject body = getUsersEvent.right().getValue().getJsonObject(0);
+                        String user1 = body.getString("owner"), user2 = body.getString("student_id");
+                        conversationService.checkIfExists(user1, user2, response -> {
+                            if (response.isRight() && response.right().getValue().getBoolean("exists")) {
+                                handler.handle(new Either.Right<>(new JsonObject()));
+                            } else {
+                                conversationService.create(user1, user2,
+                                        event1 -> userService.getUsers(new JsonArray().add(body.getString("owner")), result -> {
+                                            if (result.isRight()) {
+                                                JsonObject returnedValue = new JsonObject()
+                                                        .put("id", event1.right().getValue().getInteger("id"))
+                                                        .put("student", result.right().getValue().getJsonObject(0));
+
+                                                handler.handle(new Either.Right<>(returnedValue));
+                                            } else {
+                                                String errorMessage = "[DefaultRequestService@updateStatus] An error occurred when matching user";
+                                                LOGGER.error(errorMessage);
+                                                handler.handle(new Either.Left<>(errorMessage));
+                                            }
+                                        }));
+                            }
+                        });
+                    } else {
+                        String errorMessage = "[DefaultRequestService@updateStatus] Unable to fetch request users";
+                        LOGGER.error(errorMessage);
+                        handler.handle(new Either.Left<>(errorMessage));
+                    }
+                }));
+            } else {
+                String errorMessage = "[DefaultRequestService@updateStatus] An error occurred updating request status";
+                LOGGER.error(errorMessage);
+                handler.handle(new Either.Left<>(errorMessage));
+            }
+        }));
     }
 
     @Override

@@ -29,18 +29,18 @@ public class DefaultMessageService implements MessageService {
     }
 
     @Override
-    public void addMessage(HttpServerRequest request, Integer requestId, String owner, String text, Handler<Either<String, JsonObject>> handler) {
-        String query = "INSERT INTO " + Schooltoring.dbSchema + ".message(owner, request_id, text) " +
+    public void addMessage(HttpServerRequest request, Integer conversationId, String owner, String text, Handler<Either<String, JsonObject>> handler) {
+        String query = "INSERT INTO " + Schooltoring.dbSchema + ".message(owner, conversation_id, text) " +
                 "VALUES (?, ?, ?) RETURNING date;";
         JsonArray params = new JsonArray()
                 .add(owner)
-                .add(requestId)
+                .add(conversationId)
                 .add(text);
 
         Sql.getInstance().prepared(query, params, SqlResult.validUniqueResultHandler(event -> {
             if (event.isRight()) {
                 handler.handle(new Either.Right<>(event.right().getValue()));
-                sendMessageToUser(request, requestId, owner, text, event.right().getValue().getString("date"));
+                sendMessageToUser(request, conversationId, owner, text, event.right().getValue().getString("date"));
             } else {
                 String errorMessage = "[DefaultMessageService@addMessage] An error occurred when creating message";
                 LOGGER.error(errorMessage);
@@ -110,20 +110,17 @@ public class DefaultMessageService implements MessageService {
     /**
      * Get user id to send message
      *
-     * @param requestId    request id
+     * @param conversationId    request id
      * @param messageOwner message owner id
      * @param handler      Function handler returning data
      */
-    private void getMatchId(Integer requestId, String messageOwner, Handler<Either<String, String>> handler) {
-        String query = "SELECT CASE WHEN student_id = ? THEN owner ELSE student_id END as user " +
-                "FROM " + Schooltoring.dbSchema + ".request " +
-                "WHERE id = ? " +
-                "AND (student_id = ? OR owner = ?)";
+    private void getMatchId(Integer conversationId, String messageOwner, Handler<Either<String, String>> handler) {
+        String query = "SELECT id as user FROM " + Schooltoring.dbSchema + ".conversation_users " +
+                "WHERE conversation_id = ? " +
+                "AND id <> ?;";
 
         JsonArray params = new JsonArray()
-                .add(messageOwner)
-                .add(requestId)
-                .add(messageOwner)
+                .add(conversationId)
                 .add(messageOwner);
 
         Sql.getInstance().prepared(query, params, SqlResult.validResultHandler(event -> {

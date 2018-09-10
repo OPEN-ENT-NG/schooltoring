@@ -1,9 +1,7 @@
 package fr.openent.schooltoring.controller;
 
-import fr.openent.schooltoring.definition.Feature;
-import fr.openent.schooltoring.definition.RequestStatus;
 import fr.openent.schooltoring.security.APIRight;
-import fr.openent.schooltoring.security.RequestFilter;
+import fr.openent.schooltoring.security.ConversationFilter;
 import fr.openent.schooltoring.service.ConversationService;
 import fr.openent.schooltoring.service.MessageService;
 import fr.openent.schooltoring.service.impl.DefaultConversationService;
@@ -17,9 +15,6 @@ import org.entcore.common.controller.ControllerHelper;
 import org.entcore.common.http.filter.ResourceFilter;
 import org.entcore.common.user.UserUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.entcore.common.http.response.DefaultResponseHandler.arrayResponseHandler;
 import static org.entcore.common.http.response.DefaultResponseHandler.defaultResponseHandler;
 
@@ -28,14 +23,14 @@ public class ConversationController extends ControllerHelper {
     private final ConversationService conversationService = new DefaultConversationService();
     private MessageService messageService;
 
-    @Post("/conversation/:requestId/message")
+    @Post("/conversation/:conversationId/message")
     @SecuredAction(value = "", type = ActionType.RESOURCE)
-    @ResourceFilter(RequestFilter.class)
+    @ResourceFilter(ConversationFilter.class)
     public void postMessage(HttpServerRequest request) {
         RequestUtils.bodyToJson(request, pathPrefix + "message", body -> {
             UserUtils.getUserInfos(eb, request, user -> {
                 try {
-                    Integer requestId = Integer.parseInt(request.params().get("requestId"));
+                    Integer requestId = Integer.parseInt(request.params().get("conversationId"));
                     messageService.addMessage(request, requestId, user.getUserId(), body.getString("text"), defaultResponseHandler(request));
                 } catch (ClassCastException err) {
                     badRequest(request);
@@ -45,12 +40,12 @@ public class ConversationController extends ControllerHelper {
         });
     }
 
-    @Get("/conversation/:requestId/messages")
+    @Get("/conversation/:conversationId/messages")
     @SecuredAction(value = "", type = ActionType.RESOURCE)
-    @ResourceFilter(RequestFilter.class)
+    @ResourceFilter(ConversationFilter.class)
     public void getMessages(HttpServerRequest request) {
         try {
-            Integer requestId = Integer.parseInt(request.params().get("requestId"));
+            Integer requestId = Integer.parseInt(request.params().get("conversationId"));
             Integer page = request.params().contains("page") ? Integer.parseInt(request.params().get("page")) : 0;
 
             conversationService.getMessages(requestId, page, arrayResponseHandler(request));
@@ -65,21 +60,9 @@ public class ConversationController extends ControllerHelper {
     @ResourceFilter(APIRight.class)
     public void getConvesations(HttpServerRequest request) {
         String state = request.params().get("state");
-        if (state != null && !Feature.WEAKNESS.toString().equals(state) && !Feature.STRENGTH.toString().equals(state)) {
-            badRequest(request);
-        } else {
-            UserUtils.getUserInfos(eb, request, user -> {
-                List<String> status;
-                if (request.params().contains("status")) {
-                    status = request.params().getAll("status");
-                } else {
-                    status = new ArrayList<>();
-                    status.add(RequestStatus.WAITING.toString());
-                    status.add(RequestStatus.ACCEPTED.toString());
-                }
-                conversationService.getConversations(user.getUserId(), state, status, arrayResponseHandler(request));
-            });
-        }
+        UserUtils.getUserInfos(eb, request, user -> {
+            conversationService.getConversations(user.getUserId(), arrayResponseHandler(request));
+        });
     }
 
     public void setMessageService(MessageService messageService) {

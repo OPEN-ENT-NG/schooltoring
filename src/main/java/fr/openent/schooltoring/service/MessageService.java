@@ -11,10 +11,10 @@ public interface MessageService {
      * Add message to request conversation
      *
      * @param request Http Request. Need by i18n API.
-     * @param requestId Request id
+     * @param conversationId Conversation id
      * @param owner     User sending message
      * @param text      Text message
      * @param handler   Function handler returning data
      */
-    void addMessage(HttpServerRequest request, Integer requestId, String owner, String text, Handler<Either<String, JsonObject>> handler);
+    void addMessage(HttpServerRequest request, Integer conversationId, String owner, String text, Handler<Either<String, JsonObject>> handler);
 }
