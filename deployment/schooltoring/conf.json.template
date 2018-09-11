@@ -1,5 +1,5 @@
     {
-      "name": "fr.openent~schooltoring~0.1.0",
+      "name": "fr.openent~schooltoring~0.2-SNAPSHOT",
       "config": {
         "main" : "fr.openent.schooltoring.Schooltoring",
         "port" : 8141,
