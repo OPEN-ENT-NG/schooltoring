@@ -56,24 +56,36 @@ public class DefaultRequestService implements RequestService {
                     if (getUsersEvent.isRight()) {
                         JsonObject body = getUsersEvent.right().getValue().getJsonObject(0);
                         String user1 = body.getString("owner"), user2 = body.getString("student_id");
-                        conversationService.checkIfExists(user1, user2, response -> {
-                            if (response.isRight() && response.right().getValue().getBoolean("exists")) {
-                                handler.handle(new Either.Right<>(new JsonObject()));
-                            } else {
-                                conversationService.create(user1, user2,
-                                        event1 -> userService.getUsers(new JsonArray().add(body.getString("owner")), result -> {
-                                            if (result.isRight()) {
-                                                JsonObject returnedValue = new JsonObject()
-                                                        .put("id", event1.right().getValue().getInteger("id"))
-                                                        .put("student", result.right().getValue().getJsonObject(0));
+                        userService.getUsers(new JsonArray().add(body.getString("owner")), result -> {
+                            if (result.isRight()) {
+                                conversationService.checkIfExists(user1, user2, response -> {
+                                    if (response.isRight() && response.right().getValue().getBoolean("exists")) {
+                                        JsonObject returnedValue = new JsonObject()
+                                                .put("id", response.right().getValue().getInteger("id"))
+                                                .put("student", result.right().getValue().getJsonObject(0));
 
-                                                handler.handle(new Either.Right<>(returnedValue));
-                                            } else {
-                                                String errorMessage = "[DefaultRequestService@updateStatus] An error occurred when matching user";
-                                                LOGGER.error(errorMessage);
-                                                handler.handle(new Either.Left<>(errorMessage));
-                                            }
-                                        }));
+                                        handler.handle(new Either.Right<>(returnedValue));
+                                    } else {
+                                        conversationService.create(user1, user2,
+                                                event1 -> {
+                                                    if (result.isRight()) {
+                                                        JsonObject returnedValue = new JsonObject()
+                                                                .put("id", event1.right().getValue().getInteger("id"))
+                                                                .put("student", result.right().getValue().getJsonObject(0));
+
+                                                        handler.handle(new Either.Right<>(returnedValue));
+                                                    } else {
+                                                        String errorMessage = "[DefaultRequestService@updateStatus] An error occurred when matching user";
+                                                        LOGGER.error(errorMessage);
+                                                        handler.handle(new Either.Left<>(errorMessage));
+                                                    }
+                                                });
+                                    }
+                                });
+                            } else {
+                                String errorMessage = "[DefaultRequestService@updateStatus] An error occurred when matching user";
+                                LOGGER.error(errorMessage);
+                                handler.handle(new Either.Left<>(errorMessage));
                             }
                         });
                     } else {
