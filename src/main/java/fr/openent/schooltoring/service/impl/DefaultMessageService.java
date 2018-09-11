@@ -76,7 +76,9 @@ public class DefaultMessageService implements MessageService {
                                         .put("type", "NEW_MESSAGE")
                                         .put("request", requestId.toString())
                                         .put("owner", messageOwner)
-                                        .put("date", date);
+                                        .put("date", date)
+                                        .put("username", user.getString("username"))
+                                        .put("avatar", user.getString("avatar"));
                                 JsonObject message = new JsonObject()
                                         .put("notification", notification)
                                         .put("data", data);
