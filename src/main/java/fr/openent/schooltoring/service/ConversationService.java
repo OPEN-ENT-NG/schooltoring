@@ -41,4 +41,12 @@ public interface ConversationService {
      * @param handler Function handler returning data
      */
     void checkIfExists(String user1, String user2, Handler<Either<String, JsonObject>> handler);
+
+    /**
+     * Get conversation ids based on current user id and recipients array
+     *
+     * @param userId  Current user id
+     * @param handler Function handler returning data
+     */
+    void getConversationIds(String userId, Handler<Either<String, JsonArray>> handler);
 }

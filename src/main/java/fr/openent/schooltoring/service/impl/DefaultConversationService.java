@@ -159,4 +159,23 @@ public class DefaultConversationService implements ConversationService {
             handler.handle(new Either.Right<>(res));
         });
     }
+
+    @Override
+    public void getConversationIds(String userId, Handler<Either<String, JsonArray>> handler) {
+        String query = "SELECT conversation_users.id as user, conversation_users.conversation_id " +
+                "FROM " + Schooltoring.dbSchema + ".conversation_users " +
+                "WHERE conversation_users.conversation_id IN ( " +
+                "SELECT conversation.id " +
+                "FROM " + Schooltoring.dbSchema + ".conversation " +
+                "INNER JOIN " + Schooltoring.dbSchema + ".conversation_users ON (conversation.id = conversation_users.conversation_id) " +
+                "WHERE conversation_users.id = ? " +
+                ") " +
+                "AND conversation_users.id != ?";
+
+        JsonArray params = new JsonArray()
+                .add(userId)
+                .add(userId);
+
+        Sql.getInstance().prepared(query, params, SqlResult.validResultHandler(handler));
+    }
 }

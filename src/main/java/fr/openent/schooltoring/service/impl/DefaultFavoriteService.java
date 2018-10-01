@@ -1,6 +1,7 @@
 package fr.openent.schooltoring.service.impl;
 
 import fr.openent.schooltoring.Schooltoring;
+import fr.openent.schooltoring.service.ConversationService;
 import fr.openent.schooltoring.service.FavoriteService;
 import fr.openent.schooltoring.service.UserService;
 import fr.openent.schooltoring.utils.Utils;
@@ -15,7 +16,9 @@ import org.entcore.common.sql.SqlResult;
 
 public class DefaultFavoriteService implements FavoriteService {
     Logger LOGGER = LoggerFactory.getLogger(DefaultFavoriteService.class);
-    UserService userService = new DefaultUserService();
+
+    private UserService userService = new DefaultUserService();
+    private ConversationService conversationService = new DefaultConversationService();
 
     @Override
     public void get(String owner, Handler<Either<String, JsonArray>> handler) {
@@ -28,23 +31,35 @@ public class DefaultFavoriteService implements FavoriteService {
                 JsonArray favorites = event.right().getValue();
                 JsonArray users = Utils.extractStringValues(favorites, "student_id");
 
-                userService.getUsers(users, userEvent -> {
-                    if (userEvent.isRight()) {
-                        JsonArray result = new JsonArray();
-                        JsonObject usersMapped = Utils.mapObjectsWithStringKeys(userEvent.right().getValue(), "id");
-                        for (int i = 0; i < favorites.size(); i++) {
-                            JsonObject user = usersMapped.getJsonObject(favorites.getJsonObject(i).getString("student_id"));
-                            user.remove("id");
-                            JsonObject favorite = new JsonObject()
-                                    .put("id", favorites.getJsonObject(i).getString("student_id"))
-                                    .put("userinfo", user);
+                conversationService.getConversationIds(owner, conversationsEvent -> {
+                    if (conversationsEvent.isRight()) {
+                        JsonObject conversationsMap = Utils.mapObjectsWithStringKeys(conversationsEvent.right().getValue(), "user");
+                        userService.getUsers(users, userEvent -> {
+                            if (userEvent.isRight()) {
+                                JsonArray result = new JsonArray();
+                                JsonObject usersMapped = Utils.mapObjectsWithStringKeys(userEvent.right().getValue(), "id");
+                                for (int i = 0; i < favorites.size(); i++) {
+                                    JsonObject user = usersMapped.getJsonObject(favorites.getJsonObject(i).getString("student_id"));
+                                    user.remove("id");
+                                    JsonObject favorite = new JsonObject()
+                                            .put("id", favorites.getJsonObject(i).getString("student_id"))
+                                            .put("userinfo", user);
+                                    if (conversationsMap.containsKey(favorites.getJsonObject(i).getString("student_id"))) {
+                                        favorite.put("conversation_id", conversationsMap.getJsonObject(favorites.getJsonObject(i).getString("student_id")).getString("user"));
+                                    }
 
-                            result.add(favorite);
-                        }
+                                    result.add(favorite);
+                                }
 
-                        handler.handle(new Either.Right<>(result));
+                                handler.handle(new Either.Right<>(result));
+                            } else {
+                                String errorMessage = "[DefaultFavoriteService@get] An error occurred when fetching users ";
+                                LOGGER.error(errorMessage);
+                                handler.handle(new Either.Left<>(errorMessage));
+                            }
+                        });
                     } else {
-                        String errorMessage = "[DefaultFavoriteService@get] An error occurred when fetching users ";
+                        String errorMessage = "[DefaultFavoriteService@get] An error occurred when fetching conversations";
                         LOGGER.error(errorMessage);
                         handler.handle(new Either.Left<>(errorMessage));
                     }
