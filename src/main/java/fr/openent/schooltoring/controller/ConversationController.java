@@ -15,6 +15,9 @@ import org.entcore.common.controller.ControllerHelper;
 import org.entcore.common.http.filter.ResourceFilter;
 import org.entcore.common.user.UserUtils;
 
+import java.sql.Timestamp;
+import java.util.Date;
+
 import static org.entcore.common.http.response.DefaultResponseHandler.arrayResponseHandler;
 import static org.entcore.common.http.response.DefaultResponseHandler.defaultResponseHandler;
 
@@ -46,9 +49,9 @@ public class ConversationController extends ControllerHelper {
     public void getMessages(HttpServerRequest request) {
         try {
             Integer requestId = Integer.parseInt(request.params().get("conversationId"));
-            Integer page = request.params().contains("page") ? Integer.parseInt(request.params().get("page")) : 0;
+            String lastMessage = request.params().contains("lastMessage") ? request.params().get("lastMessage") : new Timestamp(new Date().getTime()).toString();
 
-            conversationService.getMessages(requestId, page, arrayResponseHandler(request));
+            conversationService.getMessages(requestId, lastMessage, arrayResponseHandler(request));
         } catch (ClassCastException err) {
             badRequest(request);
             throw err;

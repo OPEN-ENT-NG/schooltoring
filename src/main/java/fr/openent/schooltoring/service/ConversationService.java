@@ -28,10 +28,10 @@ public interface ConversationService {
      * Get request messages
      *
      * @param conversationId Request identifier
-     * @param page      Page number
-     * @param handler   Function handler returning data
+     * @param lastMessage Last timestamp message
+     * @param handler Function handler returning data
      */
-    void getMessages(Integer conversationId, Integer page, Handler<Either<String, JsonArray>> handler);
+    void getMessages(Integer conversationId, String lastMessage, Handler<Either<String, JsonArray>> handler);
 
     /**
      * Check if conversation already exists

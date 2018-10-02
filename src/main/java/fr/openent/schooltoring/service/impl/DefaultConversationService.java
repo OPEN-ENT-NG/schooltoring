@@ -130,10 +130,10 @@ public class DefaultConversationService implements ConversationService {
 
 
     @Override
-    public void getMessages(Integer conversationId, Integer page, Handler<Either<String, JsonArray>> handler) {
+    public void getMessages(Integer conversationId, String lastMessage, Handler<Either<String, JsonArray>> handler) {
         String query = "SELECT owner, date, text FROM " + Schooltoring.dbSchema + ".message " +
-                "WHERE conversation_id = ? ORDER BY date DESC LIMIT " + CONVERSATION_PAGE_SIZE + " OFFSET ?";
-        JsonArray params = new JsonArray().add(conversationId).add(page * CONVERSATION_PAGE_SIZE);
+                "WHERE conversation_id = ? AND date < ? ORDER BY date DESC LIMIT " + CONVERSATION_PAGE_SIZE;
+        JsonArray params = new JsonArray().add(conversationId).add(lastMessage);
 
         Sql.getInstance().prepared(query, params, SqlResult.validResultHandler(handler));
     }
