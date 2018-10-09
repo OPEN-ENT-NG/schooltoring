@@ -5,7 +5,7 @@
         "port" : 8141,
         "app-name" : "Schooltoring",
     	"app-address" : "/schooltoring",
-    	"app-icon" : "Schooltoring-large",
+    	"app-icon" : "${host}/schooltoring/public/img/logo.png",
         "host": "${host}",
         "ssl" : $ssl,
         "auto-redeploy": false,
