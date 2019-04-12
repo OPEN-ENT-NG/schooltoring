@@ -27,7 +27,11 @@ public class ProfileController extends ControllerHelper {
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(APIRight.class)
     public void getProfile(HttpServerRequest request) {
-        UserUtils.getSession(eb, request, user -> profileService.get(user.getString("userId"), defaultResponseHandler(request)));
+        if (request.params().contains("userId")) {
+            profileService.get(request.getParam("userId"), defaultResponseHandler(request));
+        } else {
+            UserUtils.getSession(eb, request, user -> profileService.get(user.getString("userId"), defaultResponseHandler(request)));
+        }
     }
 
     @Post("/profile")
